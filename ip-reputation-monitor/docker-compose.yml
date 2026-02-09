@@ -1,0 +1,75 @@
+version: '3.8'
+
+services:
+  ip-reputation-monitor:
+    build: .
+    container_name: ip-reputation-monitor
+    ports:
+      - "8000:8000"
+    volumes:
+      # Persist database
+      - ./data:/app/data
+      # Persist reports
+      - ./reports:/app/reports
+    environment:
+      # App Settings
+      - APP_NAME=IP Reputation Monitor
+      - APP_VERSION=1.0.0
+      - DEBUG=false
+
+      # Database
+      - DATABASE_URL=sqlite:///./data/ip_reputation.db
+
+      # DNS Settings
+      - DNS_TIMEOUT_MS=2500
+      - DNS_CONCURRENCY=50
+      - DNS_PER_ZONE_RATE_LIMIT=10
+
+      # Cache Settings
+      - CACHE_TTL_MINUTES=60
+      - CACHE_MAX_SIZE=10000
+
+      # Rate Limiting
+      - RATE_LIMIT_PER_MINUTE=60
+
+      # Scheduler
+      - SCHEDULER_ENABLED=true
+      - SCHEDULER_INTERVAL_MINUTES=30
+
+      # Alert Webhook (optional)
+      - ALERT_WEBHOOK_URL=
+      - ALERT_WEBHOOK_TIMEOUT_SEC=10
+
+      # Reports
+      - REPORTS_DIR=./reports
+      - REPORT_RETENTION_DAYS=30
+      - REPORT_MAX_ROWS=50000
+
+      # CORS
+      - CORS_ORIGINS=*
+
+      # Logging
+      - LOG_LEVEL=INFO
+      - LOG_FORMAT=json
+
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health').read()"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 5s
+
+    # Resource limits (optional, adjust as needed)
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 2G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+
+networks:
+  default:
+    name: ip-reputation-network

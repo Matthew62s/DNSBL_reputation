@@ -1,0 +1,228 @@
+{% extends "base.html" %}
+
+{% block title %}Zones - IP Reputation Monitor{% endblock %}
+
+{% block content %}
+<h1 style="margin-bottom: 2rem;">Zone Management</h1>
+
+<!-- Add Zone Form -->
+<div class="card">
+    <div class="card-header">
+        <div class="card-title">Add New Zone</div>
+    </div>
+    <form id="addZoneForm" onsubmit="addZone(event)">
+        <div class="form-group">
+            <label for="zoneInput">Zone Name</label>
+            <input type="text" id="zoneInput" class="form-control" required placeholder="e.g., zen.spamhaus.org">
+        </div>
+        <div class="form-group">
+            <label for="zoneDescription">Description (optional)</label>
+            <input type="text" id="zoneDescription" class="form-control" placeholder="e.g., Spamhaus ZEN blacklist">
+        </div>
+        <div class="form-group">
+            <label>
+                <input type="checkbox" id="zoneEnabled" checked>
+                Enabled
+            </label>
+        </div>
+        <button type="submit" class="btn btn-primary">➕ Add Zone</button>
+    </form>
+</div>
+
+<!-- Quick Actions -->
+<div class="card">
+    <div class="card-header">
+        <div class="card-title">Quick Actions</div>
+    </div>
+    <div style="display: flex; gap: 1rem; flex-wrap: wrap;">
+        <button class="btn btn-success" onclick="initializeDefaultZones()">🔄 Initialize Default Zones</button>
+    </div>
+</div>
+
+<!-- Filters -->
+<div class="card">
+    <div class="card-header">
+        <div class="card-title">Filters</div>
+    </div>
+    <div style="display: flex; gap: 1rem; flex-wrap: wrap;">
+        <div class="form-group" style="flex: 1; min-width: 200px;">
+            <label for="searchInput">Search</label>
+            <input type="text" id="searchInput" class="form-control" placeholder="Zone or description...">
+        </div>
+        <div class="form-group" style="flex: 1; min-width: 150px;">
+            <label for="enabledFilter">Status</label>
+            <select id="enabledFilter" class="form-control">
+                <option value="">All</option>
+                <option value="true">Enabled</option>
+                <option value="false">Disabled</option>
+            </select>
+        </div>
+        <div class="form-group" style="flex: 0 0 auto;">
+            <label>&nbsp;</label>
+            <button class="btn btn-primary" onclick="loadZones()">🔍 Search</button>
+        </div>
+        <div class="form-group" style="flex: 0 0 auto;">
+            <label>&nbsp;</label>
+            <button class="btn btn-secondary" onclick="clearFilters()">Clear</button>
+        </div>
+    </div>
+</div>
+
+<!-- Zones Table -->
+<div class="card">
+    <div class="card-header">
+        <div class="card-title">Zones (<span id="zoneCount">0</span>)</div>
+        <button class="btn btn-sm btn-secondary" onclick="loadZones()">🔄 Refresh</button>
+    </div>
+    <div id="zonesList">
+        <p class="loading">Loading zones...</p>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let currentZones = [];
+
+async function loadZones() {
+    const search = document.getElementById('searchInput').value;
+    const enabled = document.getElementById('enabledFilter').value;
+
+    let url = `/api/zones?limit=100`;
+    if (search) url += `&search=${encodeURIComponent(search)}`;
+    if (enabled !== '') url += `&enabled_filter=${enabled}`;
+
+    try {
+        const response = await fetch(url);
+        const data = await response.json();
+        currentZones = data.items;
+
+        document.getElementById('zoneCount').textContent = data.total;
+
+        if (data.items.length === 0) {
+            document.getElementById('zonesList').innerHTML = '<p>No zones found</p>';
+            return;
+        }
+
+        let html = '<table><thead><tr><th>Zone</th><th>Description</th><th>Spamhaus</th><th>Status</th><th>Created</th><th>Actions</th></tr></thead><tbody>';
+        data.items.forEach(item => {
+            html += `
+                <tr>
+                    <td><strong>${item.zone}</strong></td>
+                    <td>${item.description || '-'}</td>
+                    <td>${item.is_spamhaus ? '✅ Yes' : '❌ No'}</td>
+                    <td><span class="badge badge-${item.enabled ? 'success' : 'secondary'}">${item.enabled ? 'Enabled' : 'Disabled'}</span></td>
+                    <td>${new Date(item.created_at).toLocaleDateString()}</td>
+                    <td>
+                        <button class="btn btn-sm ${item.enabled ? 'btn-warning' : 'btn-success'}" onclick="toggleZone(${item.id})">${item.enabled ? 'Disable' : 'Enable'}</button>
+                        <button class="btn btn-sm btn-danger" onclick="deleteZone(${item.id})">Delete</button>
+                    </td>
+                </tr>
+            `;
+        });
+        html += '</tbody></table>';
+        document.getElementById('zonesList').innerHTML = html;
+    } catch (error) {
+        console.error('Error loading zones:', error);
+        document.getElementById('zonesList').innerHTML = '<p class="alert alert-danger">Error loading zones</p>';
+    }
+}
+
+async function addZone(event) {
+    event.preventDefault();
+
+    const zone = document.getElementById('zoneInput').value;
+    const description = document.getElementById('zoneDescription').value || null;
+    const enabled = document.getElementById('zoneEnabled').checked;
+
+    try {
+        const response = await fetch('/api/zones', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ zone, description, enabled })
+        });
+
+        if (response.ok) {
+            alert('Zone added successfully!');
+            document.getElementById('addZoneForm').reset();
+            loadZones();
+        } else {
+            const error = await response.json();
+            alert('Failed to add zone: ' + error.detail);
+        }
+    } catch (error) {
+        console.error('Error adding zone:', error);
+        alert('Error adding zone: ' + error.message);
+    }
+}
+
+async function toggleZone(id) {
+    const zone = currentZones.find(z => z.id === id);
+    if (!zone) return;
+
+    try {
+        const response = await fetch(`/api/zones/${id}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ enabled: !zone.enabled })
+        });
+
+        if (response.ok) {
+            loadZones();
+        } else {
+            alert('Failed to update zone');
+        }
+    } catch (error) {
+        console.error('Error updating zone:', error);
+        alert('Error updating zone: ' + error.message);
+    }
+}
+
+async function deleteZone(id) {
+    if (!confirm('Are you sure you want to delete this zone?')) return;
+
+    try {
+        const response = await fetch(`/api/zones/${id}`, { method: 'DELETE' });
+
+        if (response.ok) {
+            alert('Zone deleted successfully');
+            loadZones();
+        } else {
+            alert('Failed to delete zone');
+        }
+    } catch (error) {
+        console.error('Error deleting zone:', error);
+        alert('Error deleting zone: ' + error.message);
+    }
+}
+
+async function initializeDefaultZones() {
+    if (!confirm('This will add all default DNSBL zones. Continue?')) return;
+
+    try {
+        const response = await fetch('/api/zones/default/initialize', { method: 'POST' });
+
+        if (response.ok) {
+            const result = await response.json();
+            alert(result.message);
+            loadZones();
+        } else {
+            const error = await response.json();
+            alert('Failed to initialize zones: ' + error.detail);
+        }
+    } catch (error) {
+        console.error('Error initializing zones:', error);
+        alert('Error initializing zones: ' + error.message);
+    }
+}
+
+function clearFilters() {
+    document.getElementById('searchInput').value = '';
+    document.getElementById('enabledFilter').value = '';
+    loadZones();
+}
+
+// Load zones on page load
+document.addEventListener('DOMContentLoaded', loadZones);
+</script>
+{% endblock %}

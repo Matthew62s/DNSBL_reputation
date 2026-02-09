@@ -1,0 +1,160 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard - IP Reputation Monitor{% endblock %}
+
+{% block content %}
+<h1 style="margin-bottom: 2rem;">Dashboard</h1>
+
+<!-- Stats Cards -->
+<div class="stats-grid">
+    <div class="stat-card">
+        <div class="stat-label">Total Targets</div>
+        <div class="stat-value" id="totalTargets">-</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-label">Listed Targets</div>
+        <div class="stat-value listed" id="listedTargets">-</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-label">Blocked Targets</div>
+        <div class="stat-value blocked" id="blockedTargets">-</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-label">Error Targets</div>
+        <div class="stat-value error" id="errorTargets">-</div>
+    </div>
+</div>
+
+<!-- Quick Actions -->
+<div class="card">
+    <div class="card-header">
+        <div class="card-title">Quick Actions</div>
+    </div>
+    <div style="display: flex; gap: 1rem; flex-wrap: wrap;">
+        <button class="btn btn-primary" onclick="runMonitor()">▶ Run Monitor</button>
+        <a href="/targets" class="btn btn-success">➕ Add Targets</a>
+        <a href="/reports" class="btn btn-secondary">📊 Generate Report</a>
+    </div>
+</div>
+
+<!-- Last Run Status -->
+<div class="card">
+    <div class="card-header">
+        <div class="card-title">Last Monitoring Run</div>
+        <button class="btn btn-sm btn-secondary" onclick="loadStatus()">🔄 Refresh</button>
+    </div>
+    <div id="lastRunInfo">
+        <p class="loading">Loading...</p>
+    </div>
+</div>
+
+<!-- Recent Issues -->
+<div class="card">
+    <div class="card-header">
+        <div class="card-title">Recent Issues</div>
+        <button class="btn btn-sm btn-secondary" onclick="loadIssues()">🔄 Refresh</button>
+    </div>
+    <div id="recentIssues">
+        <p class="loading">Loading...</p>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+async function loadStatus() {
+    try {
+        const response = await fetch('/api/status/summary');
+        const data = await response.json();
+
+        document.getElementById('totalTargets').textContent = data.total_targets;
+        document.getElementById('listedTargets').textContent = data.listed_targets;
+        document.getElementById('blockedTargets').textContent = data.blocked_targets;
+        document.getElementById('errorTargets').textContent = data.error_targets;
+
+        const lastRun = data.last_run;
+        if (lastRun) {
+            document.getElementById('lastRunInfo').innerHTML = `
+                <p><strong>Status:</strong> <span class="badge badge-${lastRun.status === 'completed' ? 'success' : 'warning'}">${lastRun.status}</span></p>
+                <p><strong>Started:</strong> ${new Date(lastRun.started_at).toLocaleString()}</p>
+                ${lastRun.finished_at ? `<p><strong>Finished:</strong> ${new Date(lastRun.finished_at).toLocaleString()}</p>` : ''}
+                ${lastRun.duration_seconds ? `<p><strong>Duration:</strong> ${lastRun.duration_seconds}s</p>` : ''}
+                <p><strong>Listed:</strong> ${lastRun.listed_count} | <strong>Blocked:</strong> ${lastRun.blocked_count} | <strong>Errors:</strong> ${lastRun.error_count}</p>
+            `;
+        } else {
+            document.getElementById('lastRunInfo').innerHTML = '<p>No monitoring runs yet</p>';
+        }
+    } catch (error) {
+        console.error('Error loading status:', error);
+        document.getElementById('lastRunInfo').innerHTML = '<p class="alert alert-danger">Error loading status</p>';
+    }
+}
+
+async function loadIssues() {
+    try {
+        const response = await fetch('/api/status?has_issues_only=true&limit=20');
+        const data = await response.json();
+
+        if (data.length === 0) {
+            document.getElementById('recentIssues').innerHTML = '<p>No issues found! ✅</p>';
+            return;
+        }
+
+        let html = '<table><thead><tr><th>Target</th><th>Type</th><th>Listed</th><th>Blocked</th><th>Errors</th></tr></thead><tbody>';
+        data.forEach(item => {
+            html += `
+                <tr>
+                    <td><strong>${item.target}</strong></td>
+                    <td><span class="badge badge-secondary">${item.type}</span></td>
+                    <td>${item.listed_count > 0 ? `<span class="badge badge-danger">${item.listed_count}</span>` : '-'}</td>
+                    <td>${item.blocked_count > 0 ? `<span class="badge badge-warning">${item.blocked_count}</span>` : '-'}</td>
+                    <td>${item.error_count > 0 ? `<span class="badge badge-secondary">${item.error_count}</span>` : '-'}</td>
+                </tr>
+            `;
+        });
+        html += '</tbody></table>';
+        document.getElementById('recentIssues').innerHTML = html;
+    } catch (error) {
+        console.error('Error loading issues:', error);
+        document.getElementById('recentIssues').innerHTML = '<p class="alert alert-danger">Error loading issues</p>';
+    }
+}
+
+async function runMonitor() {
+    const btn = event.target;
+    btn.disabled = true;
+    btn.textContent = '⏳ Starting...';
+
+    try {
+        const response = await fetch('/api/monitor/run?triggered_by=manual', { method: 'POST' });
+        const data = await response.json();
+
+        if (response.ok) {
+            alert(`Monitor run ${data.id} started successfully!`);
+            loadStatus();
+            loadIssues();
+        } else {
+            alert('Failed to start monitor run: ' + JSON.stringify(data.detail));
+        }
+    } catch (error) {
+        console.error('Error starting monitor:', error);
+        alert('Error starting monitor: ' + error.message);
+    } finally {
+        btn.disabled = false;
+        btn.textContent = '▶ Run Monitor';
+    }
+}
+
+// Load data on page load
+document.addEventListener('DOMContentLoaded', () => {
+    loadStatus();
+    loadIssues();
+
+    // Auto-refresh every 60 seconds
+    setInterval(() => {
+        loadStatus();
+        loadIssues();
+    }, 60000);
+});
+</script>
+{% endblock %}
