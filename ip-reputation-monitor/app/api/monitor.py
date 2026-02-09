@@ -1,6 +1,8 @@
 """API endpoints for monitoring runs."""
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, status
+from datetime import datetime
+
+from fastapi import APIRouter, BackgroundTasks, Body, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
@@ -18,8 +20,8 @@ router = APIRouter(prefix="/monitor", tags=["monitor"])
 
 @router.post("/run", response_model=MonitorRunResponse, status_code=status.HTTP_202_ACCEPTED)
 async def trigger_monitor_run(
-    request: MonitorRunRequest,
     background_tasks: BackgroundTasks,
+    request: MonitorRunRequest = Body(default_factory=MonitorRunRequest),
     triggered_by: str = Query("api", description="Who triggered the run (api/manual/scheduler)"),
     db: Session = Depends(get_db),
 ):
