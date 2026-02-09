@@ -9,7 +9,6 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Set, Tuple
 
-import aiohttp
 import dns.asyncresolver
 from cachetools import TTLCache
 from dns.exception import DNSException, NXDOMAIN, Timeout
