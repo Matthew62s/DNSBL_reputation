@@ -11,8 +11,8 @@ from typing import Dict, List, Optional, Set, Tuple
 
 import dns.asyncresolver
 from cachetools import TTLCache
-from dns.exception import DNSException, NXDOMAIN, Timeout
-from dns.resolver import NoAnswer
+from dns.exception import DNSException
+from dns.resolver import NXDOMAIN, NoAnswer, Timeout
 
 from app.core.config import settings
 
