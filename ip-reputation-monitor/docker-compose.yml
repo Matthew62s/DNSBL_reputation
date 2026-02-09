@@ -43,8 +43,8 @@ services:
       - REPORT_RETENTION_DAYS=30
       - REPORT_MAX_ROWS=50000
 
-      # CORS
-      - CORS_ORIGINS=*
+      # CORS (commented out to avoid JSON parsing error)
+      # - CORS_ORIGINS=*
 
       # Logging
       - LOG_LEVEL=INFO
