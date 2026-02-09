@@ -94,6 +94,9 @@ class ReportService:
                 "listed_count": sum(1 for r, t, z in results if r.status == "listed"),
                 "blocked_count": sum(1 for r, t, z in results if r.status == "blocked"),
                 "error_count": sum(1 for r, t, z in results if r.status == "error"),
+                "blocked_ip_addresses": sorted({
+                    t.target for r, t, z in results if r.status == "blocked" and t.type == "ip"
+                }),
                 "date_from": date_from.isoformat() if date_from else None,
                 "date_to": date_to.isoformat() if date_to else None,
             }
@@ -169,6 +172,12 @@ class ReportService:
             writer.writerow(["Total Results", data["summary"]["total_results"]])
             writer.writerow(["Listed Count", data["summary"]["listed_count"]])
             writer.writerow(["Blocked Count", data["summary"]["blocked_count"]])
+            writer.writerow([
+                "Blocked IP Addresses",
+                ", ".join(data["summary"]["blocked_ip_addresses"])
+                if data["summary"]["blocked_ip_addresses"]
+                else "None",
+            ])
             writer.writerow(["Error Count", data["summary"]["error_count"]])
             writer.writerow(["Date From", data["summary"]["date_from"] or ""])
             writer.writerow(["Date To", data["summary"]["date_to"] or ""])
@@ -208,6 +217,12 @@ class ReportService:
         ws_summary.append(["Total Results", data["summary"]["total_results"]])
         ws_summary.append(["Listed Count", data["summary"]["listed_count"]])
         ws_summary.append(["Blocked Count", data["summary"]["blocked_count"]])
+        ws_summary.append([
+            "Blocked IP Addresses",
+            ", ".join(data["summary"]["blocked_ip_addresses"])
+            if data["summary"]["blocked_ip_addresses"]
+            else "None",
+        ])
         ws_summary.append(["Error Count", data["summary"]["error_count"]])
         ws_summary.append(["Date From", data["summary"]["date_from"] or ""])
         ws_summary.append(["Date To", data["summary"]["date_to"] or ""])
@@ -313,6 +328,9 @@ class ReportService:
         story.append(Paragraph(f"Total Results: {data['summary']['total_results']}", summary_style))
         story.append(Paragraph(f"Listed Count: {data['summary']['listed_count']}", summary_style))
         story.append(Paragraph(f"Blocked Count: {data['summary']['blocked_count']}", summary_style))
+        blocked_ip_addresses = data["summary"]["blocked_ip_addresses"]
+        blocked_ip_text = ", ".join(blocked_ip_addresses) if blocked_ip_addresses else "None"
+        story.append(Paragraph(f"Blocked IP Addresses: {blocked_ip_text}", summary_style))
         story.append(Paragraph(f"Error Count: {data['summary']['error_count']}", summary_style))
         story.append(Paragraph(f"Date From: {data['summary']['date_from'] or 'N/A'}", summary_style))
         story.append(Paragraph(f"Date To: {data['summary']['date_to'] or 'N/A'}", summary_style))
