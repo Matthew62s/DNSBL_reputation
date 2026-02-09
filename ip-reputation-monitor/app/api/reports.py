@@ -1,5 +1,6 @@
 """API endpoints for reports."""
 
+import logging
 import os
 from datetime import datetime
 from typing import Optional
@@ -9,7 +10,7 @@ from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
-from app.core.database import get_db
+from app.core.database import get_db, SessionLocal
 from app.models.database import Report
 from app.models.schemas import (
     ReportCreate,
@@ -20,6 +21,7 @@ from app.models.schemas import (
 from app.services.reports import get_report_service
 
 router = APIRouter(prefix="/reports", tags=["reports"])
+logger = logging.getLogger(__name__)
 
 
 @router.post("", response_model=ReportResponse, status_code=status.HTTP_202_ACCEPTED)
@@ -61,36 +63,51 @@ async def create_report(
     db.refresh(report)
 
     # Generate report in background
-    async def generate_report():
+    def generate_report(report_id: int):
         report_service = get_report_service()
+        background_db = SessionLocal()
+
         try:
+            background_report = background_db.query(Report).filter(Report.id == report_id).first()
+            if not background_report:
+                logger.error("Report %s not found when starting background generation", report_id)
+                return
+
             # Update status
-            report.status = "generating"
-            db.commit()
+            background_report.status = "generating"
+            background_db.commit()
 
             # Generate report
             filepath, file_size = report_service.generate_report(
-                report_type=request.report_type,
-                date_from=request.date_from,
-                date_to=request.date_to,
-                target_ids=request.target_ids,
-                zone_ids=request.zone_ids,
-                status_filter=request.status_filter,
+                report_type=background_report.report_type,
+                date_from=background_report.date_from,
+                date_to=background_report.date_to,
             )
 
             # Update report
-            report.file_path = filepath
-            report.file_size_bytes = file_size
-            report.status = "completed"
-            report.completed_at = datetime.utcnow()
-            db.commit()
+            background_report.file_path = filepath
+            background_report.file_size_bytes = file_size
+            background_report.status = "completed"
+            background_report.completed_at = datetime.utcnow()
+            background_db.commit()
 
         except Exception as e:
-            report.status = "failed"
-            report.error_message = str(e)
-            db.commit()
+            logger.exception("Failed to generate report %s", report_id)
+            background_db.rollback()
 
-    background_tasks.add_task(generate_report)
+            try:
+                background_report = background_db.query(Report).filter(Report.id == report_id).first()
+                if background_report:
+                    background_report.status = "failed"
+                    background_report.error_message = str(e)
+                    background_db.commit()
+            except Exception:
+                logger.exception("Failed to mark report %s as failed", report_id)
+                background_db.rollback()
+        finally:
+            background_db.close()
+
+    background_tasks.add_task(generate_report, report.id)
 
     return ReportResponse(
         id=report.id,
