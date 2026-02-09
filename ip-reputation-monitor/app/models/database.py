@@ -142,7 +142,7 @@ class MonitorRun(Base):
     duration_seconds: Mapped[Optional[float]] = mapped_column(Integer, nullable=True)
 
     # Metadata
-    metadata: Mapped[Optional[str]] = mapped_column(Text, nullable=True)  # JSON
+    run_metadata: Mapped[Optional[str]] = mapped_column(Text, nullable=True)  # JSON
 
     # Relationships
     check_results: Mapped[list["CheckResult"]] = relationship("CheckResult", back_populates="run")
@@ -181,7 +181,7 @@ class Report(Base):
     completed_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
 
     # Metadata
-    metadata: Mapped[Optional[str]] = mapped_column(Text, nullable=True)  # JSON
+    report_metadata: Mapped[Optional[str]] = mapped_column(Text, nullable=True)  # JSON
 
     __table_args__ = (
         Index("idx_report_created_at", "created_at"),

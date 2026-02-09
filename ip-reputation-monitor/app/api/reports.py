@@ -47,7 +47,7 @@ async def create_report(
         status="pending",
         date_from=request.date_from,
         date_to=request.date_to,
-        metadata="{}",
+        report_metadata="{}",
     )
     if request.target_ids or request.zone_ids or request.status_filter:
         filters = {
