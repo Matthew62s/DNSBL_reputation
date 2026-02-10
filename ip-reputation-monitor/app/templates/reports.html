@@ -19,14 +19,7 @@
                 <option value="pdf">PDF</option>
             </select>
         </div>
-        <div class="form-group">
-            <label for="dateFrom">Date From (optional)</label>
-            <input type="datetime-local" id="dateFrom" class="form-control">
-        </div>
-        <div class="form-group">
-            <label for="dateTo">Date To (optional)</label>
-            <input type="datetime-local" id="dateTo" class="form-control">
-        </div>
+        <p style="margin-bottom: 1rem; color: #666;">Reports are generated from the most recent monitoring run.</p>
         <div class="form-group">
             <label for="statusFilter">Status Filter (optional)</label>
             <select id="statusFilter" class="form-control">
@@ -78,22 +71,22 @@ async function loadReports() {
             return;
         }
 
-        let html = '<table><thead><tr><th>Type</th><th>Status</th><th>Date Range</th><th>Created</th><th>Actions</th></tr></thead><tbody>';
+        let html = '<table><thead><tr><th>Type</th><th>Status</th><th>Run Scope</th><th>Created</th><th>Actions</th></tr></thead><tbody>';
         data.items.forEach(item => {
             let statusBadge = 'secondary';
             if (item.status === 'completed') statusBadge = 'success';
             else if (item.status === 'failed') statusBadge = 'danger';
             else if (item.status === 'generating') statusBadge = 'warning';
 
-            const dateRange = item.date_from || item.date_to ?
-                `${item.date_from ? new Date(item.date_from).toLocaleDateString() : '...'} to ${item.date_to ? new Date(item.date_to).toLocaleDateString() : '...'}` :
-                'All time';
+            const runScope = item.date_from || item.date_to ?
+                `${item.date_from ? new Date(item.date_from).toLocaleString() : '...'} to ${item.date_to ? new Date(item.date_to).toLocaleString() : '...'}` :
+                'Last monitor run';
 
             html += `
                 <tr>
                     <td><strong>${item.report_type.toUpperCase()}</strong></td>
                     <td><span class="badge badge-${statusBadge}">${item.status}</span></td>
-                    <td>${dateRange}</td>
+                    <td>${runScope}</td>
                     <td>${new Date(item.created_at).toLocaleString()}</td>
                     <td>
                         ${item.status === 'completed' ? `<a href="/api/reports/${item.id}/download" class="btn btn-sm btn-success">Download</a>` : ''}
@@ -116,8 +109,6 @@ async function generateReport(event) {
     event.preventDefault();
 
     const report_type = document.getElementById('reportType').value;
-    const dateFrom = document.getElementById('dateFrom').value ? new Date(document.getElementById('dateFrom').value).toISOString() : null;
-    const dateTo = document.getElementById('dateTo').value ? new Date(document.getElementById('dateTo').value).toISOString() : null;
     const statusFilter = document.getElementById('statusFilter').value;
 
     try {
@@ -126,8 +117,6 @@ async function generateReport(event) {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 report_type,
-                date_from: dateFrom,
-                date_to: dateTo,
                 status_filter: statusFilter === 'all' ? null : statusFilter,
             })
         });

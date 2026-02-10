@@ -100,11 +100,11 @@ async function loadIssues() {
             return;
         }
 
-        let html = '<table><thead><tr><th>Target</th><th>Type</th><th>Listed</th><th>Blocked</th><th>Errors</th></tr></thead><tbody>';
+        let html = '<div style="overflow-x: auto;"><table><thead><tr><th>Target</th><th>Type</th><th>Listed</th><th>Blocked</th><th>Errors</th></tr></thead><tbody>';
         data.forEach(item => {
             html += `
                 <tr>
-                    <td><strong>${item.target}</strong></td>
+                    <td><strong style="white-space: nowrap;">${item.target}</strong></td>
                     <td><span class="badge badge-secondary">${item.type}</span></td>
                     <td>${item.listed_count > 0 ? `<span class="badge badge-danger">${item.listed_count}</span>` : '-'}</td>
                     <td>${item.blocked_count > 0 ? `<span class="badge badge-warning">${item.blocked_count}</span>` : '-'}</td>
@@ -112,7 +112,7 @@ async function loadIssues() {
                 </tr>
             `;
         });
-        html += '</tbody></table>';
+        html += '</tbody></table></div>';
         document.getElementById('recentIssues').innerHTML = html;
     } catch (error) {
         console.error('Error loading issues:', error);

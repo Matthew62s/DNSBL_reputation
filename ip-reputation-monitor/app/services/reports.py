@@ -64,14 +64,24 @@ class ReportService:
     ) -> dict:
         """Gather data for the report."""
         with get_db_context() as db:
+            # Report scope: always use latest monitor run results.
+            latest_run = (
+                db.query(MonitorRun)
+                .filter(MonitorRun.status == "completed")
+                .order_by(MonitorRun.started_at.desc())
+                .first()
+            )
+
+            if not latest_run:
+                latest_run = db.query(MonitorRun).order_by(MonitorRun.started_at.desc()).first()
+
             # Build query
             query = db.query(CheckResult, Target, Zone).join(Target, CheckResult.target_id == Target.id).join(Zone, CheckResult.zone_id == Zone.id)
 
-            # Apply date filter
-            if date_from:
-                query = query.filter(CheckResult.last_checked >= date_from)
-            if date_to:
-                query = query.filter(CheckResult.last_checked <= date_to)
+            if latest_run:
+                query = query.filter(CheckResult.run_id == latest_run.id)
+            else:
+                query = query.filter(CheckResult.id == -1)
 
             # Apply target filter
             if target_ids:
@@ -97,8 +107,9 @@ class ReportService:
                 "blocked_ip_addresses": sorted({
                     t.target for r, t, z in results if r.status == "blocked" and t.type == "ip"
                 }),
-                "date_from": date_from.isoformat() if date_from else None,
-                "date_to": date_to.isoformat() if date_to else None,
+                "monitor_run_id": latest_run.id if latest_run else None,
+                "monitor_run_started_at": latest_run.started_at.isoformat() if latest_run else None,
+                "monitor_run_finished_at": latest_run.finished_at.isoformat() if latest_run and latest_run.finished_at else None,
             }
 
             # Per-target breakdown
@@ -179,8 +190,9 @@ class ReportService:
                 else "None",
             ])
             writer.writerow(["Error Count", data["summary"]["error_count"]])
-            writer.writerow(["Date From", data["summary"]["date_from"] or ""])
-            writer.writerow(["Date To", data["summary"]["date_to"] or ""])
+            writer.writerow(["Monitor Run ID", data["summary"]["monitor_run_id"] or "N/A"])
+            writer.writerow(["Run Started", data["summary"]["monitor_run_started_at"] or "N/A"])
+            writer.writerow(["Run Finished", data["summary"]["monitor_run_finished_at"] or "N/A"])
             writer.writerow([])
 
             # Write detailed results
@@ -224,8 +236,9 @@ class ReportService:
             else "None",
         ])
         ws_summary.append(["Error Count", data["summary"]["error_count"]])
-        ws_summary.append(["Date From", data["summary"]["date_from"] or ""])
-        ws_summary.append(["Date To", data["summary"]["date_to"] or ""])
+        ws_summary.append(["Monitor Run ID", data["summary"]["monitor_run_id"] or "N/A"])
+        ws_summary.append(["Run Started", data["summary"]["monitor_run_started_at"] or "N/A"])
+        ws_summary.append(["Run Finished", data["summary"]["monitor_run_finished_at"] or "N/A"])
 
         # Format summary header
         ws_summary["A1"].font = Font(bold=True, size=14)
