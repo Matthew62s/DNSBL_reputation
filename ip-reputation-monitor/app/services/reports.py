@@ -96,7 +96,19 @@ class ReportService:
                 query = query.filter(CheckResult.status == status_filter)
 
             # Execute query
-            results = query.order_by(CheckResult.last_checked.desc()).all()
+            # NOTE: keep only the most recent result for each (target, zone) pair
+            # so reports do not duplicate entries when multiple checks were stored
+            # for the same target/zone in a single monitor run.
+            raw_results = query.order_by(CheckResult.last_checked.desc()).all()
+            seen_pairs = set()
+            results = []
+            for result in raw_results:
+                r, t, z = result
+                pair_key = (t.id, z.id)
+                if pair_key in seen_pairs:
+                    continue
+                seen_pairs.add(pair_key)
+                results.append(result)
 
             # Process data
             summary = {
