@@ -1,5 +1,6 @@
 """API endpoints for reports."""
 
+import ast
 import logging
 import os
 from datetime import datetime
@@ -35,8 +36,7 @@ async def create_report(
 
     **Parameters:**
     - report_type: Type of report ('csv', 'xlsx', or 'pdf')
-    - date_from: Optional start date for report data
-    - date_to: Optional end date for report data
+    - Data scope is always the most recent monitoring run (latest completed run preferred)
     - target_ids: Optional list of target IDs to include
     - zone_ids: Optional list of zone IDs to include
     - status_filter: Optional filter by status ('listed', 'blocked', 'error', or 'all')
@@ -47,8 +47,8 @@ async def create_report(
     report = Report(
         report_type=request.report_type,
         status="pending",
-        date_from=request.date_from,
-        date_to=request.date_to,
+        date_from=None,
+        date_to=None,
         report_metadata="{}",
     )
     if request.target_ids or request.zone_ids or request.status_filter:
@@ -78,10 +78,12 @@ async def create_report(
             background_db.commit()
 
             # Generate report
+            filters = ast.literal_eval(background_report.filters) if background_report.filters else {}
             filepath, file_size = report_service.generate_report(
                 report_type=background_report.report_type,
-                date_from=background_report.date_from,
-                date_to=background_report.date_to,
+                target_ids=filters.get("target_ids"),
+                zone_ids=filters.get("zone_ids"),
+                status_filter=filters.get("status_filter"),
             )
 
             # Update report
